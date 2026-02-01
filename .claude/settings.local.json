@@ -3,7 +3,9 @@
     "allow": [
       "Bash(python:*)",
       "WebFetch(domain:arxiv.org)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(git push -u origin main)",
+      "Bash(git config:*)"
     ]
   }
 }
