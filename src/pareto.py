@@ -229,6 +229,40 @@ def plot_data_with_influence_colors(
     return fig
 
 
+def create_paper_colormap():
+    """
+    Create the exact colormap from the paper's Figure 2 Panel C.
+    Blue → Cyan → White → Orange → Red
+    Represents: Harmful → Neutral → Beneficial
+    """
+    from matplotlib.colors import LinearSegmentedColormap
+
+    colors = [
+        (0.0, '#1f77b4'),   # Blue (harmful)
+        (0.25, '#6baed6'),  # Light blue
+        (0.45, '#c6dbef'),  # Very light blue/cyan
+        (0.5, '#ffffff'),   # White (neutral)
+        (0.55, '#fdd0a2'),  # Very light orange
+        (0.75, '#fd8d3c'),  # Light orange
+        (1.0, '#d62728'),   # Red (beneficial)
+    ]
+
+    def hex_to_rgb(h):
+        h = h.lstrip('#')
+        return tuple(int(h[i:i+2], 16)/255.0 for i in (0, 2, 4))
+
+    positions = [c[0] for c in colors]
+    rgb_colors = [hex_to_rgb(c[1]) for c in colors]
+
+    cdict = {
+        'red': [(p, c[0], c[0]) for p, c in zip(positions, rgb_colors)],
+        'green': [(p, c[1], c[1]) for p, c in zip(positions, rgb_colors)],
+        'blue': [(p, c[2], c[2]) for p, c in zip(positions, rgb_colors)]
+    }
+
+    return LinearSegmentedColormap('paper_cmap', cdict)
+
+
 def create_figure2_style_plot(
     X: np.ndarray,
     y: np.ndarray,
@@ -238,98 +272,147 @@ def create_figure2_style_plot(
     save_path: Optional[str] = None
 ) -> plt.Figure:
     """
-    Create a 3-panel figure in the style of Figure 2 from the paper.
-    
-    Panel A: Original data with classification boundary
-    Panel B: Influence vector scatter plot (Pareto frontier)
-    Panel C: Data colored by influence region
-    
-    This is the main visualization for the synthetic experiments.
-    
+    Create a 3-panel figure matching the style of Figure 2 from the paper.
+
+    Panel A: Original data with decision boundary
+    Panel B: Influence vector scatter plot (class-colored)
+    Panel C: Data colored by net influence score (continuous colorbar)
+
+    Improved visualization features:
+    - NO distracting red markers for noisy samples
+    - Paper's exact colormap (Blue→Cyan→White→Orange→Red)
+    - Clear labels: Harmful/Neutral/Beneficial
+    - 4K+ resolution output
+
     Args:
         X: Feature matrix of shape (n_samples, 2)
         y: Labels of shape (n_samples,)
         influence_vectors: Influence vectors of shape (n_samples, 2)
-        noisy_indices: Optional array of noisy sample indices
+        noisy_indices: Optional array of noisy sample indices (not displayed)
         dataset_name: Name for the figure title
         save_path: Optional path to save the figure
-        
+
     Returns:
         matplotlib Figure object
     """
     from .category_influence import classify_samples_by_region
-    
-    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
-    
-    # === Panel A: Original Data ===
-    ax = axes[0]
-    colors = ['#3b82f6' if yi == 0 else '#f97316' for yi in y]
-    ax.scatter(X[:, 0], X[:, 1], c=colors, alpha=0.6, s=40, edgecolors='white', linewidth=0.3)
-    
-    if noisy_indices is not None and len(noisy_indices) > 0:
-        ax.scatter(X[noisy_indices, 0], X[noisy_indices, 1], 
-                  c='red', s=80, marker='x', linewidth=2, label='Noisy')
-    
-    ax.set_xlabel('Feature 1', fontsize=12)
-    ax.set_ylabel('Feature 2', fontsize=12)
-    ax.set_title(f'A: {dataset_name}', fontsize=14, fontweight='bold')
-    ax.set_aspect('equal')
-    
-    # === Panel B: Influence Vector Scatter ===
-    ax = axes[1]
+    from matplotlib.colors import TwoSlopeNorm
+
+    # High-quality settings for 4K+ output
+    plt.rcParams.update({
+        'font.size': 16,
+        'font.family': 'sans-serif',
+        'axes.labelsize': 18,
+        'axes.titlesize': 22,
+        'axes.titleweight': 'bold',
+        'legend.fontsize': 12,
+        'xtick.labelsize': 14,
+        'ytick.labelsize': 14,
+        'figure.dpi': 150,
+        'savefig.dpi': 400,
+        'axes.linewidth': 1.5,
+    })
+
+    fig, axes = plt.subplots(1, 3, figsize=(20, 7))
+
+    n_total = len(y)
     P0, P1 = influence_vectors[:, 0], influence_vectors[:, 1]
-    ax.scatter(P0, P1, c=colors, alpha=0.6, s=40, edgecolors='white', linewidth=0.3)
-    
-    if noisy_indices is not None and len(noisy_indices) > 0:
-        ax.scatter(P0[noisy_indices], P1[noisy_indices], 
-                  c='red', s=80, marker='x', linewidth=2)
-    
-    # Pareto frontier line
-    lim = max(abs(P0).max(), abs(P1).max()) * 1.3
-    ax.plot([-lim, lim], [lim, -lim], 'g--', alpha=0.7, linewidth=2)
-    ax.axhline(y=0, color='gray', alpha=0.3)
-    ax.axvline(x=0, color='gray', alpha=0.3)
-    
-    ax.set_xlabel('Influence on Class 0', fontsize=12)
-    ax.set_ylabel('Influence on Class 1', fontsize=12)
-    ax.set_title('B: Category-Wise Influence Vectors', fontsize=14, fontweight='bold')
+
+    mask_0 = (y == 0)
+    mask_1 = (y == 1)
+
+    color_blue = '#1f77b4'
+    color_orange = '#ff7f0e'
+
+    # ========== Panel A: Data Distribution ==========
+    ax = axes[0]
+
+    ax.scatter(X[mask_0, 0], X[mask_0, 1], c=color_blue, s=40, alpha=0.85,
+               edgecolors='white', linewidth=0.3, label='Class 0')
+    ax.scatter(X[mask_1, 0], X[mask_1, 1], c=color_orange, s=40, alpha=0.85,
+               edgecolors='white', linewidth=0.3, label='Class 1')
+
+    # Diagonal decision boundary
+    xlim = [X[:, 0].min() - 0.5, X[:, 0].max() + 0.5]
+    ylim = [X[:, 1].min() - 0.5, X[:, 1].max() + 0.5]
+    xx = np.array([xlim[0], xlim[1]])
+    ax.plot(xx, -xx, 'k-', linewidth=2.5)
+
+    ax.set_xlabel('Feature 1', fontweight='bold')
+    ax.set_ylabel('Feature 2', fontweight='bold')
+    ax.set_title('A', loc='left', fontsize=24, fontweight='bold', x=-0.02)
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
+    ax.set_aspect('equal')
+    ax.legend(loc='upper left', framealpha=0.95)
+
+    # ========== Panel B: Influence Space ==========
+    ax = axes[1]
+
+    ax.scatter(P0[mask_0], P1[mask_0], c=color_blue, s=40, alpha=0.85,
+               edgecolors='white', linewidth=0.3, label='Class 0')
+    ax.scatter(P0[mask_1], P1[mask_1], c=color_orange, s=40, alpha=0.85,
+               edgecolors='white', linewidth=0.3, label='Class 1')
+
+    lim = max(np.abs(P0).max(), np.abs(P1).max()) * 1.15
+    ax.plot([-lim, lim], [lim, -lim], 'k-', linewidth=2.5, zorder=1)
+    ax.axhline(0, color='gray', alpha=0.4, linewidth=1, linestyle='--')
+    ax.axvline(0, color='gray', alpha=0.4, linewidth=1, linestyle='--')
+
+    # Region labels
+    ax.text(lim * 0.5, lim * 0.65, 'Joint\nPositive', fontsize=11,
+            ha='center', va='center', alpha=0.6)
+    ax.text(-lim * 0.5, -lim * 0.65, 'Joint\nNegative', fontsize=11,
+            ha='center', va='center', alpha=0.6)
+
+    ax.set_xlabel('P0 (Class 0 Influence)', fontweight='bold')
+    ax.set_ylabel('P1 (Class 1 Influence)', fontweight='bold')
+    ax.set_title('B', loc='left', fontsize=24, fontweight='bold', x=-0.02)
     ax.set_xlim(-lim, lim)
     ax.set_ylim(-lim, lim)
     ax.set_aspect('equal')
-    
-    # === Panel C: Data colored by region ===
+    ax.legend(loc='upper left', framealpha=0.95)
+
+    # ========== Panel C: Net Influence in Feature Space ==========
     ax = axes[2]
-    regions = classify_samples_by_region(influence_vectors)
-    
-    region_colors = np.array(['lightgray'] * len(y))
-    region_colors[regions['joint_positive']] = '#22c55e'  # green
-    region_colors[regions['joint_negative']] = '#ef4444'  # red
-    region_colors[regions['tradeoff_class_0']] = '#60a5fa'  # light blue
-    region_colors[regions['tradeoff_class_1']] = '#fb923c'  # light orange
-    
-    ax.scatter(X[:, 0], X[:, 1], c=region_colors, alpha=0.6, s=40, 
-              edgecolors='white', linewidth=0.3)
-    
-    ax.set_xlabel('Feature 1', fontsize=12)
-    ax.set_ylabel('Feature 2', fontsize=12)
-    ax.set_title('C: Samples Colored by Influence Region', fontsize=14, fontweight='bold')
+
+    cmap = create_paper_colormap()
+    net_influence = P0 + P1
+
+    vmax = np.percentile(np.abs(net_influence), 97)
+    norm = TwoSlopeNorm(vmin=-vmax, vcenter=0, vmax=vmax)
+
+    scatter = ax.scatter(X[:, 0], X[:, 1], c=net_influence, cmap=cmap, norm=norm,
+                         s=40, alpha=0.9, edgecolors='white', linewidth=0.3)
+
+    ax.plot(xx, -xx, 'k-', linewidth=2.5)
+
+    cbar = plt.colorbar(scatter, ax=ax, shrink=0.82, aspect=22, pad=0.02)
+    cbar.set_label('Net Influence Score', fontsize=14, fontweight='bold')
+    cbar.ax.tick_params(labelsize=12)
+
+    # Interpretation labels
+    cbar.ax.text(2.3, 0.92, 'Beneficial', transform=cbar.ax.transAxes,
+                 fontsize=10, va='center', ha='left', color='#d62728')
+    cbar.ax.text(2.3, 0.5, 'Neutral', transform=cbar.ax.transAxes,
+                 fontsize=10, va='center', ha='left', color='gray')
+    cbar.ax.text(2.3, 0.08, 'Harmful', transform=cbar.ax.transAxes,
+                 fontsize=10, va='center', ha='left', color='#1f77b4')
+
+    ax.set_xlabel('Feature 1', fontweight='bold')
+    ax.set_ylabel('Feature 2', fontweight='bold')
+    ax.set_title('C', loc='left', fontsize=24, fontweight='bold', x=-0.02)
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
     ax.set_aspect('equal')
-    
-    # Summary statistics
-    n_joint_pos = len(regions['joint_positive'])
-    n_joint_neg = len(regions['joint_negative'])
-    n_total = len(y)
-    ax.text(0.02, 0.98, f"Joint+: {n_joint_pos} ({100*n_joint_pos/n_total:.1f}%)\n"
-                        f"Joint-: {n_joint_neg} ({100*n_joint_neg/n_total:.1f}%)",
-           transform=ax.transAxes, fontsize=10, verticalalignment='top',
-           bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
-    
+
     plt.tight_layout()
-    
+
     if save_path:
-        fig.savefig(save_path, dpi=150, bbox_inches='tight', facecolor='white')
-        print(f"Figure saved to: {save_path}")
-    
+        fig.savefig(save_path, dpi=400, bbox_inches='tight',
+                    facecolor='white', edgecolor='none')
+        print(f"Figure saved: {save_path} (400 DPI, 4K+ resolution)")
+
     return fig
 
 

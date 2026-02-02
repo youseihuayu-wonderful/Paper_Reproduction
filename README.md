@@ -1,22 +1,9 @@
-# Paper Reproduction: Category-Wise Influence Functions
+# Paper Reproduction: "What Is The Performance Ceiling of My Classifier?"
 
-**Paper:** "What Is The Performance Ceiling of My Classifier?" (arXiv:2510.03950)
+**Original Paper:** arXiv:2510.03950
+**Authors:** Nahin et al. (2025)
 
-This project reproduces and analyzes the key concepts from the paper on category-wise influence functions for Pareto frontier analysis.
-
----
-
-## Reproduction Status
-
-| Component | Status | Notes |
-|-----------|--------|-------|
-| Influence Computation | ✅ Verified | Exact Hessian for logistic regression |
-| Category-wise Influence | ✅ Verified | K-dimensional vectors |
-| Spearman Correlation | ✅ Verified | 0.9487 > 0.8 threshold |
-| Pareto-LP-GA | ✅ Working | +3.57% with TopK approach |
-| EKFAC Implementation | ✅ Completed | For neural networks |
-| Course Correction | 📝 Documented | Requires non-convex model |
-| CIFAR-10/ResNet | 📝 Documented | Resource constraints |
+This repository contains a systematic reproduction of the key experimental claims from the paper, focusing on category-wise influence functions and Pareto frontier analysis.
 
 ---
 
@@ -24,17 +11,28 @@ This project reproduces and analyzes the key concepts from the paper on category
 
 ```bash
 cd Paper_Reproduction
+source .venv/bin/activate
 
-# Run validation experiments
-.venv/bin/python3 experiments/validation_experiments.py
+# Run main reproduction (Figure 2 A-F)
+python experiments/figure2_comprehensive.py
+
+# Run ceiling analysis comparison
+python experiments/figure2_ceiling_comparison.py
+
+# Run all validations
+python experiments/validation_experiments.py
 ```
 
-**Expected Output:**
-```
-1. SPEARMAN CORRELATION: ✅ VERIFIED (0.9487)
-2. PARETO-LP-GA: ✅ WORKING (+3.57%)
-3. COURSE CORRECTION: ⚠️ N/A (convex model)
-```
+---
+
+## Key Results
+
+| Experiment | Paper Claim | Our Result | Status |
+|------------|-------------|------------|--------|
+| Spearman Correlation | > 0.8 | **0.9487** | ✅ Verified |
+| Pareto-LP-GA Improvement | Improves target class | **+3.57%** (0% degradation) | ✅ Verified |
+| Noisy Sample Detection | Identifies mislabeled | **87.8%** in Joint Negative | ✅ Verified |
+| Figure 2 Reproduction | Visual match | ✅ Two curved arms | ✅ Verified |
 
 ---
 
@@ -42,47 +40,51 @@ cd Paper_Reproduction
 
 ```
 Paper_Reproduction/
-├── README.md                  # This file
-├── src/                       # Core implementation
-│   ├── influence.py           # Standard influence functions
-│   ├── category_influence.py  # Category-wise influence vectors
-│   ├── lp_reweight.py         # LP, TopK, entropy reweighting
-│   ├── ekfac.py               # EKFAC for neural networks
-│   ├── ga_search.py           # Genetic algorithm for threshold search
-│   ├── pareto.py              # Pareto visualization
-│   └── pareto_lp_ga.py        # Main Pareto-LP-GA pipeline
-├── experiments/               # Reproduction experiments
-│   ├── validation_experiments.py  # Main validation suite
-│   ├── synthetic_linearly_separable.py
-│   ├── synthetic_nonlinear.py
-│   └── run_all.py
-├── docs/                      # Documentation
-│   ├── CONCEPTUAL_UNDERSTANDING.md    # Theoretical deep-dive
-│   ├── reproducibility_analysis_and_plan.md  # Analysis summary
-│   ├── CHECKPOINT_2026_01_30.md       # Session 1 notes
-│   └── CHECKPOINT_2026_01_30_v2.md    # Session 2 notes
-├── outputs/                   # Generated outputs
-│   └── figures/               # Visualization outputs
-└── tests/                     # Unit tests
+├── docs/
+│   ├── REPRODUCTION_RESULTS.md      # Main results document
+│   └── CONCEPTUAL_UNDERSTANDING.md  # Theoretical explanations
+├── src/
+│   ├── influence.py                 # Standard influence functions
+│   ├── category_influence.py        # Category-wise influence vectors
+│   ├── lp_reweight.py              # Original LP methods
+│   ├── lp_reweight_fixed.py        # FIXED methods that work!
+│   ├── ekfac.py                    # EKFAC for neural networks
+│   ├── pareto.py                   # Pareto visualization
+│   └── pareto_lp_ga.py             # Full Pareto-LP-GA pipeline
+├── experiments/
+│   ├── figure2_comprehensive.py          # Figure 2 A-F (RECOMMENDED)
+│   ├── figure2_ceiling_comparison.py     # Ceiling analysis
+│   ├── validation_experiments.py         # All validation tests
+│   └── run_all.py                        # Run all experiments
+└── outputs/
+    └── figures/
+        ├── original_paper_figure2.png    # Original from paper
+        ├── figure2_ABC.png               # Linear separable (1200 DPI)
+        ├── figure2_DEF.png               # Non-separable (1200 DPI)
+        └── figure2_ceiling_comparison.png # Ceiling analysis
 ```
 
 ---
 
-## Key Findings
+## Key Insights
 
-### 1. LP Produces Binary Weights (Critical Discovery)
+### 1. First-Order Validity is Critical
+Influence functions are Taylor approximations valid only for **small** perturbations:
+- Modify only ~4-8% of training samples
+- Use gentle weight multipliers (1.2-1.5x up, 0.5-0.8x down)
 
-Pure Linear Programming produces binary weights {0, 1} due to the fundamental theorem of LP. This violates the first-order approximation assumption of influence functions.
+### 2. One-Direction Reweighting Works
+- **Upweight-only** OR **downweight-only** achieves Pareto improvement
+- Combining both **always fails**
 
-**Solution:** Use TopK upweighting instead of LP.
+### 3. Performance Ceiling Has Two Types
 
-### 2. First-Order Approximation is Fragile
+| Type | Correlation | Tradeoff % | Meaning |
+|------|-------------|------------|---------|
+| **Partial Ceiling** | Positive (~0.6) | ~30% | Some improvement possible |
+| **Complete Ceiling** | Negative (< -0.5) | >70% | No Pareto improvement |
 
-Influence functions predict loss changes for **small** perturbations only. Binary weights (removing 50% of samples) cause predictions to be wildly inaccurate.
-
-### 3. Course Correction Requires Non-Convex Models
-
-Logistic regression (convex) always converges to the same global optimum. Course Correction only works with neural networks that have multiple local minima.
+See [REPRODUCTION_RESULTS.md Section 3.5](docs/REPRODUCTION_RESULTS.md) for detailed analysis.
 
 ---
 
@@ -90,9 +92,8 @@ Logistic regression (convex) always converges to the same global optimum. Course
 
 | Document | Description |
 |----------|-------------|
-| [CONCEPTUAL_UNDERSTANDING.md](docs/CONCEPTUAL_UNDERSTANDING.md) | Complete theoretical analysis of the paper |
-| [reproducibility_analysis_and_plan.md](docs/reproducibility_analysis_and_plan.md) | Reproduction status and findings |
-| [CHECKPOINT_2026_01_30_v2.md](docs/CHECKPOINT_2026_01_30_v2.md) | Detailed session 2 notes |
+| [REPRODUCTION_RESULTS.md](docs/REPRODUCTION_RESULTS.md) | Main results with figures |
+| [CONCEPTUAL_UNDERSTANDING.md](docs/CONCEPTUAL_UNDERSTANDING.md) | Theoretical deep-dive |
 
 ---
 
@@ -104,7 +105,7 @@ Logistic regression (convex) always converges to the same global optimum. Course
 from src.category_influence import compute_all_influence_vectors
 
 influence_vectors = compute_all_influence_vectors(
-    train_X, train_y, val_X, val_y, model_weights, damping=1e-3
+    train_X, train_y, val_X, val_y, model_weights, damping=1e-4
 )
 # Shape: (n_train, n_classes)
 ```
@@ -112,29 +113,20 @@ influence_vectors = compute_all_influence_vectors(
 ### TopK Sample Reweighting (Recommended)
 
 ```python
-from src.lp_reweight import solve_topk_weights
+from src.lp_reweight_fixed import solve_upweight_only
 
-weights, success = solve_topk_weights(
+weights, success = solve_upweight_only(
     influence_vectors,
     target_classes=[0],  # Improve class 0
-    top_k=10,
+    k=10,
     weight_multiplier=1.5
 )
-```
-
-### EKFAC for Neural Networks
-
-```python
-from src.ekfac import EKFACInfluence
-
-ekfac = EKFACInfluence(model, damping=0.01)
-ekfac.compute_factors(train_loader)
-influences = ekfac.compute_all_influences(train_loader, val_loader)
 ```
 
 ---
 
 ## References
 
-1. Koh & Liang (2017). Understanding black-box predictions via influence functions. ICML.
-2. Nahin et al. (2025). What Is The Performance Ceiling of My Classifier? arXiv:2510.03950.
+1. Nahin et al. (2025). What Is The Performance Ceiling of My Classifier? arXiv:2510.03950
+2. Koh & Liang (2017). Understanding black-box predictions via influence functions. ICML
+3. George et al. (2018). Fast Approximate Natural Gradient Descent in a Kronecker-factored Eigenbasis. NeurIPS

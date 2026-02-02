@@ -6,33 +6,30 @@ framework. Given influence vectors and class thresholds, it finds optimal
 per-sample weights that maximize improvement on target classes while
 maintaining acceptable performance on other classes.
 
-Key Optimization Problem:
-    maximize    Σ_{k∈C_target} Σ_i P^k(z_i) · w_i
-    subject to  Σ_i P^k(z_i) · w_i ≥ α_k   ∀k ∉ C_target
-                0 ≤ w_i ≤ 1                 ∀i
+⚠️ CRITICAL FINDING FROM REPRODUCTION:
+======================================
+Both Pure LP and Entropy-Regularized LP FAIL in practice!
 
-IMPORTANT: Pure LP Produces Binary Weights!
-============================================
-Linear Programming optimizes a LINEAR objective over a CONVEX polytope.
-By the fundamental theorem of LP, the optimal solution is ALWAYS at a
-VERTEX of the polytope. With box constraints [0,1]^n, vertices are
-exactly the BINARY points {0,1}^n.
+Empirical results:
+| Method              | Target Δ | Non-Target Δ | Status  |
+|---------------------|----------|--------------|---------|
+| TopK (k=10, w=1.5)  | +3.57%   | 0.00%        | ✅ Works |
+| Entropy-Regularized | -7.14%   | -18.75%      | ❌ Fails |
+| Pure LP             | -7.14%   | -25.00%      | ❌ Fails |
 
-This is problematic because:
-1. Influence functions are FIRST-ORDER approximations
-2. They predict loss change for SMALL perturbations only
-3. Binary weights (removing 50% of samples) violate this assumption
-4. The predictions become inaccurate, often causing actual degradation
+WHY LP AND ENTROPY-REGULARIZED FAIL:
+1. Both methods modify ~50% of samples (even with entropy regularization)
+2. Influence functions are FIRST-ORDER Taylor approximations
+3. Large perturbations (50% sample reweighting) violate validity
+4. Predictions become wildly inaccurate
 
-Solution: Entropy Regularization
-================================
-We add an entropy regularization term to encourage non-binary weights:
-    maximize  Σ P^k(z_i) · w_i + λ · H(w)
-where H(w) = -Σ [w_i·log(w_i) + (1-w_i)·log(1-w_i)] is the binary entropy.
+WHY TOPK WORKS:
+1. Only modifies 10 samples out of 240 (4%)
+2. Uses gentle multiplier (1.5x, not 0 or infinity)
+3. Stays within first-order approximation validity
+4. Small perturbation = accurate prediction
 
-This makes the objective STRICTLY CONCAVE, pushing the optimal solution
-AWAY from vertices toward the interior. The result is smooth weights
-that respect the first-order approximation's validity.
+RECOMMENDATION: Use solve_topk_weights() for practical applications.
 
 Reference:
     Nahin et al. (2025). Section 3.4 "Pareto-LP-GA"

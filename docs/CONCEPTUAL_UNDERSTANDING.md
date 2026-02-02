@@ -63,6 +63,68 @@ For binary classification, each training sample falls into one of four regions:
 - Few samples in joint positive/negative regions
 - Then the model is at its Pareto ceiling
 
+### 2.3 Partial vs Complete Ceiling (Key Insight from Reproduction)
+
+**Critical Discovery:** A "line structure" in influence space does NOT automatically indicate ceiling!
+
+There are **two types** of line structures:
+
+#### Type 1: Partial Ceiling (Positive Correlation)
+- **Pattern:** Two curved arms in DIFFERENT tradeoff quadrants
+- **Correlation:** Positive (~0.5 to 0.9)
+- **Meaning:** Class-specific tradeoffs exist, but some samples are in joint regions
+- **Implication:** Some Pareto improvement IS possible
+
+```
+Influence Space:          Quadrant Distribution:
+     P¹ ↑
+        |    🟠🟠             Joint+  |  T(Class1)
+        |   🟠🟠🟠           ---------|----------
+        |                      T(Class0) |  Joint-
+   -----+-----→ P⁰
+        |                    ~30% tradeoff, ~70% joint
+   🔵🔵🔵|
+    🔵🔵 |
+```
+
+#### Type 2: Complete Ceiling (Negative Correlation)
+- **Pattern:** Single band along the y = -x line
+- **Correlation:** Negative (< -0.5, ideally ~ -1.0)
+- **Meaning:** P⁰ + P¹ ≈ 0 for ALL samples
+- **Implication:** NO Pareto improvement possible
+
+```
+Influence Space:          Quadrant Distribution:
+     P¹ ↑
+        |🟠                   Joint+  |  T(Class1)
+        | 🟠🔵               ---------|----------
+        |  🟠🔵               T(Class0) |  Joint-
+   -----+--🔵--→ P⁰
+        |  🔵🟠              >70% tradeoff, <30% joint
+        | 🔵🟠
+        |🔵
+```
+
+#### How to Diagnose from Panel E
+
+| Check | Partial Ceiling | Complete Ceiling |
+|-------|-----------------|------------------|
+| Correlation sign | Positive | **Negative** |
+| Tradeoff % | ~30-50% | **>70%** |
+| P⁰ + P¹ | Varies | **≈ 0** |
+| Visual pattern | Two curved arms | Single y=-x band |
+
+#### Practical Implications
+
+1. **Partial Ceiling:** The Pareto-LP-GA algorithm CAN find improvements by targeting samples in joint regions
+
+2. **Complete Ceiling:** The algorithm will FAIL to find any improvement - the model has truly reached its fundamental limit
+
+The original paper likely demonstrates partial ceiling, showing that:
+- A linear classifier has limitations (tradeoff regions exist)
+- But some improvement is still possible (joint regions exist)
+- The algorithm can exploit this structure
+
 ---
 
 ## 3. Pareto-LP-GA Algorithm
