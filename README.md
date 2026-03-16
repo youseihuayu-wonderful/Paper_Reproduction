@@ -6,6 +6,47 @@
 
 A systematic reproduction of the key experimental claims from **Nahin et al. (2025)** - *"What Is The Performance Ceiling of My Classifier?"*
 
+---
+
+## What I Did
+
+1. **Implemented Influence Functions from Scratch**
+   - Derived and coded the mathematical formula: $\mathcal{I}(z, V) = \nabla L_{val}^\top H^{-1} \nabla \ell_{train}$
+   - Built Hessian computation and matrix inversion with numerical stability (damping)
+
+2. **Extended to Category-wise Influence Vectors**
+   - Instead of scalar influence, computed per-class influence vectors
+   - Enabled analysis of how each training sample affects different classes
+
+3. **Reproduced Figure 2 (Pareto Frontier)**
+   - Generated the characteristic "two curved arms" pattern
+   - Verified Spearman correlation > 0.94 between predicted and actual improvements
+
+4. **Discovered Why LP Fails & Fixed It**
+   - Found that Linear Programming produces binary weights, violating first-order approximation
+   - Developed TopK reweighting solution that actually works
+
+5. **Validated All Key Claims**
+   - Noisy sample detection: 87.8% accuracy
+   - Pareto improvement: +3.57% on target class with 0% degradation
+
+---
+
+## What I Learned
+
+| Category | Skills Gained |
+|----------|---------------|
+| **Math** | Influence functions, Hessian matrices, Taylor approximation, implicit differentiation |
+| **ML Theory** | Sample reweighting, Pareto optimality, performance ceiling detection |
+| **Optimization** | Linear programming, convex optimization, why LP produces vertex solutions |
+| **Coding** | NumPy vectorization, numerical stability, modular code design |
+| **Research** | Reading papers critically, reproducing experiments, debugging theoretical implementations |
+
+### Key Insight
+> The paper's LP method fails because influence functions are **first-order approximations** valid only for small perturbations. Modifying 50% of samples (as LP does) breaks this assumption. The fix: modify only 4-8% of samples with gentle weight changes.
+
+---
+
 ## Overview
 
 This project implements **category-wise influence functions** and **Pareto frontier analysis** to answer a fundamental question in machine learning:
