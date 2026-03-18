@@ -88,6 +88,7 @@ When all samples fall in tradeoff regions, the classifier has reached its **perf
 
 ### Influence Function Formula
 
+</>LaTeX
 $$\mathcal{I}(z, V_k) = \sum_{z' \in V_k} \nabla_\theta \ell(z'; \theta^*)^\top H^{-1} \nabla_\theta \ell(z; \theta^*)$$
 
 ### Project Structure
